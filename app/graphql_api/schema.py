@@ -1,4 +1,3 @@
-"""Ensamblado del schema de Strawberry."""
 import strawberry
 
 from app.graphql_api.mutation import Mutation
