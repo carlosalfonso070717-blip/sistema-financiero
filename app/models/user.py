@@ -15,19 +15,18 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Company(Base):
-    __tablename__ = "companies"
+class User(Base):
+    __tablename__ = "users"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     name: Mapped[str] = mapped_column(String(150), nullable=False)
-    legal_name: Mapped[str | None] = mapped_column(String(200))
-    tax_id: Mapped[str | None] = mapped_column(String(13), unique=True)
-    email: Mapped[str | None] = mapped_column(String(255))
-    phone: Mapped[str | None] = mapped_column(String(20))
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=_now, onupdate=_now, nullable=False
     )
 
-    memberships: Mapped[list["CompanyUser"]] = relationship(back_populates="company")
+    memberships: Mapped[list["CompanyUser"]] = relationship(back_populates="user")
