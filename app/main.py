@@ -4,7 +4,14 @@ from strawberry.fastapi import GraphQLRouter
 from app.database import Base, engine
 from app.graphql_api.context import get_context
 from app.graphql_api.schema import schema
-from app.models import Company, CompanyUser, User  # noqa: F401
+from app.models import (  # noqa: F401
+    Account,
+    AccountConcept,
+    Company,
+    CompanyUser,
+    Concept,
+    User,
+)
 
 Base.metadata.create_all(bind=engine)
 

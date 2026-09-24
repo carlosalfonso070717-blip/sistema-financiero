@@ -1,6 +1,14 @@
 import strawberry
 from strawberry.types import Info
 
+from app.schemas.account import (
+    Account,
+    AccountConcept,
+    AssignConceptToAccountInput,
+    Concept,
+    CreateAccountInput,
+    CreateConceptInput,
+)
 from app.schemas.company import Company, CreateCompanyInput, UpdateCompanyInput
 from app.schemas.user import (
     AuthPayload,
@@ -10,7 +18,7 @@ from app.schemas.user import (
     CreateCompanyUserInput,
     LoginInput,
 )
-from app.services import company_service, user_service
+from app.services import account_service, company_service, concept_service, user_service
 
 
 @strawberry.type
@@ -82,4 +90,51 @@ class Mutation:
             token=token,
             token_type="Bearer",
             user=AuthUser(id=strawberry.ID(user.id), name=user.name, email=user.email),
+        )
+
+    @strawberry.mutation
+    def create_account(self, info: Info, input: CreateAccountInput) -> Account:
+        model = account_service.create_account(
+            info.context.db,
+            company_id=str(input.company_id),
+            account_type=input.account_type,
+            name=input.name,
+            bank_name=input.bank_name,
+            account_number=input.account_number,
+            clabe=input.clabe,
+            card_last_digits=input.card_last_digits,
+            short_description=input.short_description,
+            long_description=input.long_description,
+        )
+        return Account.from_model(model)
+
+    @strawberry.mutation
+    def create_concept(self, info: Info, input: CreateConceptInput) -> Concept:
+        model = concept_service.create_concept(
+            info.context.db,
+            company_id=str(input.company_id),
+            concept_type=input.concept_type,
+            name=input.name,
+            short_description=input.short_description,
+            long_description=input.long_description,
+        )
+        return Concept.from_model(model)
+
+    @strawberry.mutation
+    def assign_concept_to_account(
+        self, info: Info, input: AssignConceptToAccountInput
+    ) -> AccountConcept:
+        model = account_service.assign_concept_to_account(
+            info.context.db,
+            account_id=str(input.account_id),
+            concept_id=str(input.concept_id),
+        )
+        return AccountConcept.from_model(model)
+
+    @strawberry.mutation
+    def remove_concept_from_account(
+        self, info: Info, account_id: strawberry.ID, concept_id: strawberry.ID
+    ) -> bool:
+        return account_service.remove_concept_from_account(
+            info.context.db, account_id=str(account_id), concept_id=str(concept_id)
         )
