@@ -87,3 +87,23 @@ class RelationNotFound(DomainError):
 class CompanyMismatch(DomainError):
     code = "COMPANY_MISMATCH"
     default_message = "Los registros involucrados pertenecen a empresas distintas."
+
+
+class ConceptNotAllowed(DomainError):
+    code = "CONCEPT_NOT_ALLOWED"
+    default_message = "El concepto no está permitido para la cuenta seleccionada."
+
+
+class InvalidAmount(DomainError):
+    code = "INVALID_AMOUNT"
+    default_message = "El monto del movimiento debe ser mayor que cero."
+
+
+class TransactionTypeMismatch(DomainError):
+    code = "TRANSACTION_TYPE_MISMATCH"
+    default_message = "El tipo de movimiento no corresponde con el tipo de concepto."
+
+
+class TransactionNotFound(DomainError):
+    code = "TRANSACTION_NOT_FOUND"
+    default_message = "El movimiento especificado no existe."
