@@ -3,8 +3,15 @@ from strawberry.types import Info
 
 from app.schemas.account import Account, AccountConcept, AccountType, Concept, ConceptType
 from app.schemas.company import Company
+from app.schemas.transaction import Transaction, TransactionType
 from app.schemas.user import CompanyUser
-from app.services import account_service, company_service, concept_service, user_service
+from app.services import (
+    account_service,
+    company_service,
+    concept_service,
+    transaction_service,
+    user_service,
+)
 
 
 @strawberry.type
@@ -60,3 +67,21 @@ class Query:
     def account_concepts(self, info: Info, account_id: strawberry.ID) -> list[AccountConcept]:
         rows = account_service.list_account_concepts(info.context.db, str(account_id))
         return [AccountConcept.from_model(r) for r in rows]
+
+    @strawberry.field
+    def transactions(
+        self,
+        info: Info,
+        account_id: strawberry.ID | None = None,
+        transaction_type: TransactionType | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> list[Transaction]:
+        rows = transaction_service.list_transactions(
+            info.context.db,
+            account_id=str(account_id) if account_id else None,
+            transaction_type=transaction_type,
+            limit=limit,
+            offset=offset,
+        )
+        return [Transaction.from_model(t) for t in rows]

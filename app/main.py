@@ -10,6 +10,7 @@ from app.models import (  # noqa: F401
     Company,
     CompanyUser,
     Concept,
+    Transaction,
     User,
 )
 

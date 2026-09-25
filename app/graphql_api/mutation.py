@@ -10,6 +10,7 @@ from app.schemas.account import (
     CreateConceptInput,
 )
 from app.schemas.company import Company, CreateCompanyInput, UpdateCompanyInput
+from app.schemas.transaction import CreateTransactionInput, Transaction
 from app.schemas.user import (
     AuthPayload,
     AuthUser,
@@ -18,7 +19,13 @@ from app.schemas.user import (
     CreateCompanyUserInput,
     LoginInput,
 )
-from app.services import account_service, company_service, concept_service, user_service
+from app.services import (
+    account_service,
+    company_service,
+    concept_service,
+    transaction_service,
+    user_service,
+)
 
 
 @strawberry.type
@@ -138,3 +145,23 @@ class Mutation:
         return account_service.remove_concept_from_account(
             info.context.db, account_id=str(account_id), concept_id=str(concept_id)
         )
+
+    @strawberry.mutation
+    def create_transaction(self, info: Info, input: CreateTransactionInput) -> Transaction:
+        model = transaction_service.create_transaction(
+            info.context.db,
+            current_user=info.context.user,
+            account_id=str(input.account_id),
+            concept_id=str(input.concept_id),
+            transaction_type=input.transaction_type,
+            amount=input.amount,
+            transaction_date=input.transaction_date,
+            short_description=input.short_description,
+            long_description=input.long_description,
+        )
+        return Transaction.from_model(model)
+
+    @strawberry.mutation
+    def delete_transaction(self, info: Info, id: strawberry.ID) -> Transaction:
+        model = transaction_service.delete_transaction(info.context.db, str(id))
+        return Transaction.from_model(model)
