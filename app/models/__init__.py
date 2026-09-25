@@ -3,6 +3,7 @@ from app.models.account_concept import AccountConcept
 from app.models.company import Company
 from app.models.company_user import CompanyUser
 from app.models.concept import Concept, ConceptType
+from app.models.transaction import Transaction, TransactionType
 from app.models.user import User
 
 __all__ = [
@@ -14,4 +15,6 @@ __all__ = [
     "Concept",
     "ConceptType",
     "AccountConcept",
+    "Transaction",
+    "TransactionType",
 ]
