@@ -1,0 +1,226 @@
+type Account {
+  id: ID!
+  companyId: ID!
+  accountType: AccountType!
+  name: String!
+  bankName: String
+  accountNumber: String
+  clabe: String
+  cardLastDigits: String
+  shortDescription: String
+  longDescription: String
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  company: Company!
+}
+
+type AccountConcept {
+  id: ID!
+  accountId: ID!
+  conceptId: ID!
+  isActive: Boolean!
+  createdAt: DateTime!
+  account: Account!
+  concept: Concept!
+}
+
+enum AccountType {
+  DEBIT
+  CREDIT
+  CASH
+  SAVINGS
+  INVESTMENT
+  WALLET
+  OTHER
+}
+
+input AssignConceptToAccountInput {
+  accountId: ID!
+  conceptId: ID!
+}
+
+type AuthPayload {
+  token: String!
+  tokenType: String!
+  user: AuthUser!
+}
+
+type AuthUser {
+  id: ID!
+  name: String!
+  email: String!
+}
+
+type Company {
+  id: ID!
+  name: String!
+  legalName: String
+  taxId: String
+  email: String
+  phone: String
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type CompanyUser {
+  id: ID!
+  companyId: ID!
+  userId: ID!
+  isAdmin: Boolean!
+  isActive: Boolean!
+  joinedAt: DateTime!
+  company: Company!
+  user: User!
+}
+
+type Concept {
+  id: ID!
+  companyId: ID!
+  conceptType: ConceptType!
+  name: String!
+  shortDescription: String
+  longDescription: String
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+enum ConceptType {
+  INCOME
+  EXPENSE
+}
+
+input CreateAccountInput {
+  companyId: ID!
+  accountType: AccountType!
+  name: String!
+  bankName: String = null
+  accountNumber: String = null
+  clabe: String = null
+  cardLastDigits: String = null
+  shortDescription: String = null
+  longDescription: String = null
+}
+
+input CreateCompanyAdminInput {
+  companyId: ID!
+  name: String!
+  email: String!
+  password: String!
+}
+
+input CreateCompanyInput {
+  name: String!
+  legalName: String = null
+  taxId: String = null
+  email: String = null
+  phone: String = null
+}
+
+input CreateCompanyUserInput {
+  companyId: ID!
+  name: String!
+  email: String!
+  password: String!
+}
+
+input CreateConceptInput {
+  companyId: ID!
+  conceptType: ConceptType!
+  name: String!
+  shortDescription: String = null
+  longDescription: String = null
+}
+
+input CreateTransactionInput {
+  accountId: ID!
+  conceptId: ID!
+  transactionType: TransactionType!
+  amount: Decimal!
+  transactionDate: DateTime = null
+  shortDescription: String = null
+  longDescription: String = null
+}
+
+"""Date with time (isoformat)"""
+scalar DateTime
+
+"""Decimal (fixed-point)"""
+scalar Decimal
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+type Mutation {
+  createCompany(input: CreateCompanyInput!): Company!
+  updateCompany(input: UpdateCompanyInput!): Company!
+  deactivateCompany(id: ID!): Company!
+  createCompanyAdmin(input: CreateCompanyAdminInput!): CompanyUser!
+  createCompanyUser(input: CreateCompanyUserInput!): CompanyUser!
+  deactivateCompanyUser(id: ID!): CompanyUser!
+  login(input: LoginInput!): AuthPayload!
+  createAccount(input: CreateAccountInput!): Account!
+  createConcept(input: CreateConceptInput!): Concept!
+  assignConceptToAccount(input: AssignConceptToAccountInput!): AccountConcept!
+  removeConceptFromAccount(accountId: ID!, conceptId: ID!): Boolean!
+  createTransaction(input: CreateTransactionInput!): Transaction!
+  deleteTransaction(id: ID!): Transaction!
+}
+
+type Query {
+  companies(activeOnly: Boolean = null): [Company!]!
+  company(id: ID!): Company
+  companyUsers(companyId: ID!): [CompanyUser!]!
+  accounts(companyId: ID!, accountType: AccountType = null, activeOnly: Boolean = null): [Account!]!
+  concepts(companyId: ID!, conceptType: ConceptType = null, activeOnly: Boolean = null): [Concept!]!
+  accountConcepts(accountId: ID!): [AccountConcept!]!
+  transactions(accountId: ID = null, transactionType: TransactionType = null, limit: Int = null, offset: Int = null): [Transaction!]!
+}
+
+type Transaction {
+  id: ID!
+  accountId: ID!
+  conceptId: ID!
+  transactionType: TransactionType!
+  amount: Decimal!
+  transactionDate: DateTime!
+  capturedAt: DateTime!
+  capturedBy: ID!
+  shortDescription: String
+  longDescription: String
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  account: Account!
+  concept: Concept!
+  capturedByUser: User!
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+input UpdateCompanyInput {
+  id: ID!
+  name: String = null
+  legalName: String = null
+  taxId: String = null
+  email: String = null
+  phone: String = null
+  isActive: Boolean = null
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  emailVerified: Boolean!
+  isActive: Boolean!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
