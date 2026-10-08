@@ -45,3 +45,13 @@ class CompanyUser(Base):
 
     company: Mapped["Company"] = relationship(back_populates="memberships")
     user: Mapped["User"] = relationship(back_populates="memberships")
+    role_assignments: Mapped[list["CompanyUserRole"]] = relationship(
+        back_populates="company_user"
+    )
+
+    @property
+    def active_role(self):
+        for assignment in self.role_assignments:
+            if assignment.is_active:
+                return assignment.role
+        return None

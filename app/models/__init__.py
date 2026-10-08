@@ -3,6 +3,7 @@ from app.models.account_concept import AccountConcept
 from app.models.company import Company
 from app.models.company_user import CompanyUser
 from app.models.concept import Concept, ConceptType
+from app.models.role import CompanyUserRole, Permission, Role, RolePermission
 from app.models.transaction import Transaction, TransactionType
 from app.models.user import User
 
@@ -17,4 +18,8 @@ __all__ = [
     "AccountConcept",
     "Transaction",
     "TransactionType",
+    "Role",
+    "Permission",
+    "RolePermission",
+    "CompanyUserRole",
 ]
