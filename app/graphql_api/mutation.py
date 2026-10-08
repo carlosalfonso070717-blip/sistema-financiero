@@ -10,11 +10,21 @@ from app.schemas.account import (
     CreateConceptInput,
 )
 from app.schemas.company import Company, CreateCompanyInput, UpdateCompanyInput
+from app.schemas.role import (
+    AssignPermissionToRoleInput,
+    CreatePermissionInput,
+    CreateRoleInput,
+    Permission,
+    Role,
+    RolePermission,
+)
 from app.schemas.transaction import CreateTransactionInput, Transaction
 from app.schemas.user import (
     AuthPayload,
+    AssignRoleInput,
     AuthUser,
     CompanyUser,
+    CompanyUserRole,
     CreateCompanyAdminInput,
     CreateCompanyUserInput,
     LoginInput,
@@ -23,6 +33,7 @@ from app.services import (
     account_service,
     company_service,
     concept_service,
+    role_service,
     transaction_service,
     user_service,
 )
@@ -76,6 +87,7 @@ class Mutation:
     def create_company_user(self, info: Info, input: CreateCompanyUserInput) -> CompanyUser:
         model = user_service.create_company_user(
             info.context.db,
+            actor_company_user_id=str(input.actor_company_user_id),
             company_id=str(input.company_id),
             name=input.name,
             email=input.email,
@@ -84,8 +96,14 @@ class Mutation:
         return CompanyUser.from_model(model)
 
     @strawberry.mutation
-    def deactivate_company_user(self, info: Info, id: strawberry.ID) -> CompanyUser:
-        model = user_service.deactivate_company_user(info.context.db, str(id))
+    def deactivate_company_user(
+        self, info: Info, id: strawberry.ID, actor_company_user_id: strawberry.ID
+    ) -> CompanyUser:
+        model = user_service.deactivate_company_user(
+            info.context.db,
+            actor_company_user_id=str(actor_company_user_id),
+            membership_id=str(id),
+        )
         return CompanyUser.from_model(model)
 
     @strawberry.mutation
@@ -103,6 +121,7 @@ class Mutation:
     def create_account(self, info: Info, input: CreateAccountInput) -> Account:
         model = account_service.create_account(
             info.context.db,
+            actor_company_user_id=str(input.actor_company_user_id),
             company_id=str(input.company_id),
             account_type=input.account_type,
             name=input.name,
@@ -119,6 +138,7 @@ class Mutation:
     def create_concept(self, info: Info, input: CreateConceptInput) -> Concept:
         model = concept_service.create_concept(
             info.context.db,
+            actor_company_user_id=str(input.actor_company_user_id),
             company_id=str(input.company_id),
             concept_type=input.concept_type,
             name=input.name,
@@ -133,6 +153,7 @@ class Mutation:
     ) -> AccountConcept:
         model = account_service.assign_concept_to_account(
             info.context.db,
+            actor_company_user_id=str(input.actor_company_user_id),
             account_id=str(input.account_id),
             concept_id=str(input.concept_id),
         )
@@ -140,16 +161,24 @@ class Mutation:
 
     @strawberry.mutation
     def remove_concept_from_account(
-        self, info: Info, account_id: strawberry.ID, concept_id: strawberry.ID
+        self,
+        info: Info,
+        account_id: strawberry.ID,
+        concept_id: strawberry.ID,
+        actor_company_user_id: strawberry.ID,
     ) -> bool:
         return account_service.remove_concept_from_account(
-            info.context.db, account_id=str(account_id), concept_id=str(concept_id)
+            info.context.db,
+            actor_company_user_id=str(actor_company_user_id),
+            account_id=str(account_id),
+            concept_id=str(concept_id),
         )
 
     @strawberry.mutation
     def create_transaction(self, info: Info, input: CreateTransactionInput) -> Transaction:
         model = transaction_service.create_transaction(
             info.context.db,
+            actor_company_user_id=str(input.actor_company_user_id),
             current_user=info.context.user,
             account_id=str(input.account_id),
             concept_id=str(input.concept_id),
@@ -162,6 +191,68 @@ class Mutation:
         return Transaction.from_model(model)
 
     @strawberry.mutation
-    def delete_transaction(self, info: Info, id: strawberry.ID) -> Transaction:
-        model = transaction_service.delete_transaction(info.context.db, str(id))
+    def delete_transaction(
+        self, info: Info, id: strawberry.ID, actor_company_user_id: strawberry.ID
+    ) -> Transaction:
+        model = transaction_service.delete_transaction(
+            info.context.db,
+            actor_company_user_id=str(actor_company_user_id),
+            transaction_id=str(id),
+        )
         return Transaction.from_model(model)
+
+    @strawberry.mutation
+    def create_role(self, info: Info, input: CreateRoleInput) -> Role:
+        model = role_service.create_role(
+            info.context.db, code=input.code, name=input.name, description=input.description
+        )
+        return Role.from_model(model)
+
+    @strawberry.mutation
+    def deactivate_role(self, info: Info, id: strawberry.ID) -> Role:
+        model = role_service.deactivate_role(info.context.db, str(id))
+        return Role.from_model(model)
+
+    @strawberry.mutation
+    def create_permission(self, info: Info, input: CreatePermissionInput) -> Permission:
+        model = role_service.create_permission(
+            info.context.db, code=input.code, name=input.name, description=input.description
+        )
+        return Permission.from_model(model)
+
+    @strawberry.mutation
+    def assign_permission_to_role(
+        self, info: Info, input: AssignPermissionToRoleInput
+    ) -> RolePermission:
+        model = role_service.assign_permission_to_role(
+            info.context.db,
+            actor_company_user_id=str(input.actor_company_user_id),
+            role_id=str(input.role_id),
+            permission_id=str(input.permission_id),
+        )
+        return RolePermission.from_model(model)
+
+    @strawberry.mutation
+    def remove_permission_from_role(
+        self,
+        info: Info,
+        role_id: strawberry.ID,
+        permission_id: strawberry.ID,
+        actor_company_user_id: strawberry.ID,
+    ) -> bool:
+        return role_service.remove_permission_from_role(
+            info.context.db,
+            actor_company_user_id=str(actor_company_user_id),
+            role_id=str(role_id),
+            permission_id=str(permission_id),
+        )
+
+    @strawberry.mutation
+    def assign_role(self, info: Info, input: AssignRoleInput) -> CompanyUserRole:
+        model = role_service.assign_role(
+            info.context.db,
+            actor_company_user_id=str(input.actor_company_user_id),
+            company_user_id=str(input.company_user_id),
+            role_id=str(input.role_id),
+        )
+        return CompanyUserRole.from_model(model)

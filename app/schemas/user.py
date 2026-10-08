@@ -3,6 +3,7 @@ from datetime import datetime
 import strawberry
 
 from app.schemas.company import Company
+from app.schemas.role import Role
 
 
 @strawberry.type
@@ -38,9 +39,11 @@ class CompanyUser:
     joined_at: datetime
     company: Company
     user: User
+    role: Role | None
 
     @classmethod
     def from_model(cls, model) -> "CompanyUser":
+        role = model.active_role
         return cls(
             id=strawberry.ID(model.id),
             company_id=strawberry.ID(model.company_id),
@@ -50,7 +53,34 @@ class CompanyUser:
             joined_at=model.joined_at,
             company=Company.from_model(model.company),
             user=User.from_model(model.user),
+            role=Role.from_model(role) if role else None,
         )
+
+
+@strawberry.type
+class CompanyUserRole:
+    id: strawberry.ID
+    company_user: CompanyUser
+    role: Role
+    is_active: bool
+    assigned_at: datetime
+
+    @classmethod
+    def from_model(cls, model) -> "CompanyUserRole":
+        return cls(
+            id=strawberry.ID(model.id),
+            company_user=CompanyUser.from_model(model.company_user),
+            role=Role.from_model(model.role),
+            is_active=model.is_active,
+            assigned_at=model.assigned_at,
+        )
+
+
+@strawberry.input
+class AssignRoleInput:
+    actor_company_user_id: strawberry.ID
+    company_user_id: strawberry.ID
+    role_id: strawberry.ID
 
 
 @strawberry.input
@@ -83,6 +113,7 @@ class CreateCompanyAdminInput:
 
 @strawberry.input
 class CreateCompanyUserInput:
+    actor_company_user_id: strawberry.ID
     company_id: strawberry.ID
     name: str
     email: str

@@ -99,6 +99,7 @@ class AccountConcept:
 
 @strawberry.input
 class CreateAccountInput:
+    actor_company_user_id: strawberry.ID
     company_id: strawberry.ID
     account_type: AccountType
     name: str
@@ -112,6 +113,7 @@ class CreateAccountInput:
 
 @strawberry.input
 class CreateConceptInput:
+    actor_company_user_id: strawberry.ID
     company_id: strawberry.ID
     concept_type: ConceptType
     name: str
@@ -121,5 +123,6 @@ class CreateConceptInput:
 
 @strawberry.input
 class AssignConceptToAccountInput:
+    actor_company_user_id: strawberry.ID
     account_id: strawberry.ID
     concept_id: strawberry.ID
