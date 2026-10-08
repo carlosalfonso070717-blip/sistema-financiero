@@ -107,3 +107,43 @@ class TransactionTypeMismatch(DomainError):
 class TransactionNotFound(DomainError):
     code = "TRANSACTION_NOT_FOUND"
     default_message = "El movimiento especificado no existe."
+
+
+class PermissionDenied(DomainError):
+    code = "PERMISSION_DENIED"
+    default_message = "El rol de la membresía no tiene el permiso requerido."
+
+
+class MembershipNotFound(DomainError):
+    code = "MEMBERSHIP_NOT_FOUND"
+    default_message = "La membresía indicada no existe o está inactiva."
+
+
+class RoleNotFound(DomainError):
+    code = "ROLE_NOT_FOUND"
+    default_message = "El rol especificado no existe o está inactivo."
+
+
+class PermissionNotFound(DomainError):
+    code = "PERMISSION_NOT_FOUND"
+    default_message = "El permiso especificado no existe o está inactivo."
+
+
+class DuplicateRole(DomainError):
+    code = "DUPLICATE_ROLE"
+    default_message = "Ya existe un rol con ese código."
+
+
+class DuplicatePermission(DomainError):
+    code = "DUPLICATE_PERMISSION"
+    default_message = "Ya existe un permiso con ese código."
+
+
+class RolePermissionAlreadyExists(DomainError):
+    code = "ROLE_PERMISSION_ALREADY_EXISTS"
+    default_message = "El permiso ya está asignado a este rol."
+
+
+class RolePermissionNotFound(DomainError):
+    code = "ROLE_PERMISSION_NOT_FOUND"
+    default_message = "El permiso no está asignado a este rol."
