@@ -267,6 +267,99 @@ mutation { createTransaction(input: { accountId: "ID_CUENTA", conceptId: "ID_CON
 
 Todos los montos se almacenan como positivos y el tipo de movimiento determina su efecto: `INCOME` suma y `EXPENSE` resta. El balance de una cuenta es la suma de sus ingresos menos la suma de sus egresos.
 
+## Unidad II · Actividad 3: roles y permisos
+
+Seguridad basada en roles (RBAC) en su variante plana. Un usuario no recibe permisos sueltos: su membresía (`CompanyUser`) recibe **un rol activo**, y ese rol trae su lista de permisos.
+
+```
+Role        N ──── role_permissions ──── N   Permission
+CompanyUser 1 ──── company_user_roles ─── N   Role   (un solo rol activo por membresía)
+```
+
+Tablas nuevas: `roles`, `permissions`, `role_permissions` y `company_user_roles`. Se crean con `create_all` al arrancar y no tocan las tablas que ya existen.
+
+Al arrancar, `seed_access_catalog` hace lo siguiente sin duplicar nada:
+
+- Inserta los 4 roles si la tabla `roles` está vacía.
+- Inserta los 10 permisos si la tabla `permissions` está vacía.
+- Carga la matriz para cada rol que todavía no tenga permisos.
+- Les da rol a las membresías anteriores: `ADMINISTRADOR` si son `isAdmin` y `CONSULTA` en otro caso.
+
+| Permiso | ADMINISTRADOR | CONTADOR | CAPTURISTA | CONSULTA |
+| --- | --- | --- | --- | --- |
+| company.users.read | sí | sí | no | sí |
+| company.users.write | sí | no | no | no |
+| accounts.read | sí | sí | sí | sí |
+| accounts.write | sí | sí | no | no |
+| concepts.read | sí | sí | sí | sí |
+| concepts.write | sí | sí | no | no |
+| transactions.read | sí | sí | sí | sí |
+| transactions.write | sí | sí | sí | no |
+| roles.read | sí | sí | no | no |
+| roles.write | sí | no | no | no |
+
+`createCompanyAdmin` sigue dejando `isAdmin = true`, y la regla de un solo administrador no cambia. Además, esa membresía recibe el rol `ADMINISTRADOR`. `createCompanyUser` crea la membresía con el rol `CONSULTA`, y el administrador lo cambia después con `assignRole`.
+
+### El permiso se exige antes de escribir
+
+`exigir_permiso(db, company_user_id, codigo)`, en `app/services/role_service.py`, sigue esta cadena: membresía activa → rol activo → permisos activos del rol → ¿está el código? Si falta, lanza `PERMISSION_DENIED` antes de cualquier `commit`, así que no queda ninguna fila a medias. Si la membresía es de otra empresa, la operación responde `COMPANY_MISMATCH`.
+
+| Operación | Permiso |
+| --- | --- |
+| createCompanyUser, deactivateCompanyUser | company.users.write |
+| createAccount | accounts.write |
+| createConcept, assignConceptToAccount, removeConceptFromAccount | concepts.write |
+| createTransaction, deleteTransaction | transactions.write |
+| assignRole, assignPermissionToRole, removePermissionFromRole | roles.write |
+| accounts, concepts, transactions (consultas) | `.read` correspondiente |
+
+Todas reciben `actorCompanyUserId`, que es la membresía con la que se prueba. `createTransaction` además sigue pidiendo el token, y la membresía indicada tiene que ser del usuario autenticado.
+
+### Consultas para la comprobación
+
+```graphql
+# Catálogos
+query { roles { id code name isActive } }
+query { permissions { id code name } }
+query { rolePermissions(roleId: "ID_CAPTURISTA") { permission { code } } }
+query { rolePermissions(roleId: "ID_CONSULTA") { permission { code } } }
+
+# Administrador (recibe ADMINISTRADOR) y usuarios con su rol
+mutation { createCompanyAdmin(input: { companyId: "ID_EMPRESA", name: "Ana", email: "ana@alfa.com", password: "Clave12345" }) { id isAdmin role { code } } }
+mutation { createCompanyUser(input: { actorCompanyUserId: "ID_MEMBRESIA_ADMIN", companyId: "ID_EMPRESA", name: "Luis", email: "luis@alfa.com", password: "Clave12345" }) { id role { code } } }
+mutation { assignRole(input: { actorCompanyUserId: "ID_MEMBRESIA_ADMIN", companyUserId: "ID_MEMBRESIA_LUIS", roleId: "ID_CAPTURISTA" }) { id isActive role { code } companyUser { user { email } } } }
+query { companyUsers(companyId: "ID_EMPRESA") { id isAdmin role { code } user { email } } }
+
+# createAccount: aceptado para el contador, rechazado para el capturista
+mutation { createAccount(input: { actorCompanyUserId: "ID_MEMBRESIA_CONTADOR", companyId: "ID_EMPRESA", accountType: CASH, name: "Caja Chica" }) { id name } }
+mutation { createAccount(input: { actorCompanyUserId: "ID_MEMBRESIA_CAPTURISTA", companyId: "ID_EMPRESA", accountType: CASH, name: "Caja 2" }) { id } }
+
+# createTransaction (con el token del mismo usuario en Headers)
+mutation { createTransaction(input: { actorCompanyUserId: "ID_MEMBRESIA_CAPTURISTA", accountId: "ID_CUENTA", conceptId: "ID_CONCEPTO", transactionType: INCOME, amount: "100" }) { id amount capturedByUser { email } } }
+mutation { createTransaction(input: { actorCompanyUserId: "ID_MEMBRESIA_CONSULTA", accountId: "ID_CUENTA", conceptId: "ID_CONCEPTO", transactionType: INCOME, amount: "100" }) { id } }
+
+# Consultas protegidas
+query { transactions(actorCompanyUserId: "ID_MEMBRESIA", limit: 20) { id amount } }
+query { accounts(companyId: "ID_EMPRESA", actorCompanyUserId: "ID_MEMBRESIA") { id name } }
+
+# Configuración de la matriz
+mutation { assignPermissionToRole(input: { actorCompanyUserId: "ID_MEMBRESIA_ADMIN", roleId: "ID_ROL", permissionId: "ID_PERMISO" }) { id isActive role { code } permission { code } } }
+mutation { removePermissionFromRole(actorCompanyUserId: "ID_MEMBRESIA_ADMIN", roleId: "ID_ROL", permissionId: "ID_PERMISO") }
+mutation { createRole(input: { code: "AUDITOR", name: "Auditor" }) { id code } }
+mutation { deactivateRole(id: "ID_ROL") { id isActive } }
+mutation { createPermission(input: { code: "reports.read", name: "Ver reportes" }) { id code } }
+```
+
+```sql
+SELECT code, name FROM roles;
+SELECT code FROM permissions;
+SELECT r.code, p.code FROM role_permissions rp
+  JOIN roles r ON r.id = rp.role_id JOIN permissions p ON p.id = rp.permission_id
+  WHERE rp.is_active = 1 ORDER BY r.code, p.code;
+```
+
+Códigos de error nuevos: `PERMISSION_DENIED`, `MEMBERSHIP_NOT_FOUND`, `ROLE_NOT_FOUND`, `PERMISSION_NOT_FOUND`, `DUPLICATE_ROLE`, `DUPLICATE_PERMISSION`, `ROLE_PERMISSION_ALREADY_EXISTS` y `ROLE_PERMISSION_NOT_FOUND`.
+
 ## Pendiente
 
 Las mutations `createCompany` y `createCompanyAdmin` se exponen sin autenticación, ya que el administrador de plataforma todavía no existe como registro en el sistema. En una versión posterior quedarían protegidas por un rol de superusuario.
