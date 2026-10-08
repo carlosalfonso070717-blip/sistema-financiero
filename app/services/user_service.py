@@ -12,6 +12,13 @@ from app.core.security import create_access_token, hash_password, verify_passwor
 from app.core.validators import clean_text, normalize_email, validate_password
 from app.models import CompanyUser, User
 from app.services.company_service import get_active_company_or_fail
+from app.services.role_service import (
+    ADMINISTRADOR,
+    CONSULTA,
+    exigir_permiso,
+    get_role_by_code_or_fail,
+    set_membership_role,
+)
 
 
 def _get_user_by_email(db: Session, email: str) -> User | None:
@@ -54,6 +61,11 @@ def _create_membership(db: Session, *, company_id, name, email, password, is_adm
 
     membership = CompanyUser(company_id=company.id, user_id=user.id, is_admin=is_admin)
     db.add(membership)
+    db.flush()
+
+    # isAdmin cuida que haya un solo administrador; el rol cuida qué puede ejecutar.
+    role = get_role_by_code_or_fail(db, ADMINISTRADOR if is_admin else CONSULTA)
+    set_membership_role(db, membership, role)
     db.commit()
     db.refresh(membership)
     return membership
@@ -65,7 +77,9 @@ def create_company_admin(db: Session, *, company_id, name, email, password) -> C
     )
 
 
-def create_company_user(db: Session, *, company_id, name, email, password) -> CompanyUser:
+def create_company_user(db: Session, *, actor_company_user_id, company_id, name, email,
+                        password) -> CompanyUser:
+    exigir_permiso(db, actor_company_user_id, "company.users.write", company_id=company_id)
     return _create_membership(
         db, company_id=company_id, name=name, email=email, password=password, is_admin=False
     )
@@ -82,10 +96,14 @@ def list_company_users(db: Session, company_id: str) -> list[CompanyUser]:
     )
 
 
-def deactivate_company_user(db: Session, membership_id: str) -> CompanyUser:
+def deactivate_company_user(db: Session, *, actor_company_user_id,
+                            membership_id: str) -> CompanyUser:
     membership = db.get(CompanyUser, membership_id)
     if membership is None:
         raise MembershipAlreadyExists("La membresía indicada no existe.")
+    exigir_permiso(
+        db, actor_company_user_id, "company.users.write", company_id=membership.company_id
+    )
     membership.is_active = False
     db.commit()
     db.refresh(membership)

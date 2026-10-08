@@ -12,11 +12,13 @@ from app.core.errors import (
 from app.core.validators import clean_text
 from app.models import Account, AccountConcept, AccountType, Concept
 from app.services.company_service import get_active_company_or_fail
+from app.services.role_service import exigir_permiso
 
 
-def create_account(db: Session, *, company_id, account_type, name, bank_name=None,
-                   account_number=None, clabe=None, card_last_digits=None,
+def create_account(db: Session, *, actor_company_user_id, company_id, account_type, name,
+                   bank_name=None, account_number=None, clabe=None, card_last_digits=None,
                    short_description=None, long_description=None) -> Account:
+    exigir_permiso(db, actor_company_user_id, "accounts.write", company_id=company_id)
     company = get_active_company_or_fail(db, company_id)
     clean_name = clean_text(name, "name", min_len=2, max_len=150)
 
@@ -46,7 +48,9 @@ def create_account(db: Session, *, company_id, account_type, name, bank_name=Non
     return account
 
 
-def list_accounts(db: Session, *, company_id, account_type=None, active_only=None) -> list[Account]:
+def list_accounts(db: Session, *, actor_company_user_id, company_id, account_type=None,
+                  active_only=None) -> list[Account]:
+    exigir_permiso(db, actor_company_user_id, "accounts.read", company_id=company_id)
     stmt = select(Account).where(Account.company_id == company_id)
     if account_type is not None:
         stmt = stmt.where(Account.account_type == AccountType(account_type))
@@ -62,8 +66,10 @@ def get_active_account_or_fail(db: Session, account_id: str) -> Account:
     return account
 
 
-def assign_concept_to_account(db: Session, *, account_id, concept_id) -> AccountConcept:
+def assign_concept_to_account(db: Session, *, actor_company_user_id, account_id,
+                              concept_id) -> AccountConcept:
     account = get_active_account_or_fail(db, account_id)
+    exigir_permiso(db, actor_company_user_id, "concepts.write", company_id=account.company_id)
 
     concept = db.get(Concept, concept_id)
     if concept is None or not concept.is_active:
@@ -104,7 +110,10 @@ def list_account_concepts(db: Session, account_id: str) -> list[AccountConcept]:
     )
 
 
-def remove_concept_from_account(db: Session, *, account_id, concept_id) -> bool:
+def remove_concept_from_account(db: Session, *, actor_company_user_id, account_id,
+                                concept_id) -> bool:
+    account = get_active_account_or_fail(db, account_id)
+    exigir_permiso(db, actor_company_user_id, "concepts.write", company_id=account.company_id)
     relation = db.scalars(
         select(AccountConcept).where(
             AccountConcept.account_id == account_id,

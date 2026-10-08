@@ -7,31 +7,22 @@ from sqlalchemy.orm import Session
 from app.core.errors import (
     CompanyMismatch,
     ConceptNotAllowed,
+    Forbidden,
     InvalidAmount,
     TransactionNotFound,
     TransactionTypeMismatch,
     Unauthenticated,
 )
-from app.models import AccountConcept, CompanyUser, Transaction
+from app.models import Account, AccountConcept, Transaction
 from app.models.transaction import TransactionType
 from app.services.account_service import get_active_account_or_fail
 from app.services.concept_service import get_active_concept_or_fail
+from app.services.role_service import exigir_permiso
 
 
-def _user_belongs_to_company(db: Session, user_id: str, company_id: str) -> bool:
-    membership = db.scalars(
-        select(CompanyUser).where(
-            CompanyUser.user_id == user_id,
-            CompanyUser.company_id == company_id,
-            CompanyUser.is_active.is_(True),
-        )
-    ).first()
-    return membership is not None
-
-
-def create_transaction(db: Session, *, current_user, account_id, concept_id, transaction_type,
-                       amount, transaction_date=None, short_description=None,
-                       long_description=None) -> Transaction:
+def create_transaction(db: Session, *, current_user, actor_company_user_id, account_id,
+                       concept_id, transaction_type, amount, transaction_date=None,
+                       short_description=None, long_description=None) -> Transaction:
     if current_user is None:
         raise Unauthenticated()
 
@@ -45,8 +36,11 @@ def create_transaction(db: Session, *, current_user, account_id, concept_id, tra
     if account.company_id != concept.company_id:
         raise CompanyMismatch("La cuenta y el concepto pertenecen a empresas distintas.")
 
-    if not _user_belongs_to_company(db, current_user.id, account.company_id):
-        raise CompanyMismatch("El usuario no pertenece a la empresa de la cuenta.")
+    membership = exigir_permiso(
+        db, actor_company_user_id, "transactions.write", company_id=account.company_id
+    )
+    if membership.user_id != current_user.id:
+        raise Forbidden("La membresía indicada no corresponde al usuario autenticado.")
 
     relation = db.scalars(
         select(AccountConcept).where(
@@ -81,9 +75,18 @@ def create_transaction(db: Session, *, current_user, account_id, concept_id, tra
     return transaction
 
 
-def list_transactions(db: Session, *, account_id=None, transaction_type=None,
-                      limit=None, offset=None) -> list[Transaction]:
-    stmt = select(Transaction).where(Transaction.is_active.is_(True))
+def list_transactions(db: Session, *, actor_company_user_id, account_id=None,
+                      transaction_type=None, limit=None, offset=None) -> list[Transaction]:
+    membership = exigir_permiso(db, actor_company_user_id, "transactions.read")
+    # Solo se ven los movimientos de la empresa de la membresía.
+    stmt = (
+        select(Transaction)
+        .join(Account, Account.id == Transaction.account_id)
+        .where(
+            Transaction.is_active.is_(True),
+            Account.company_id == membership.company_id,
+        )
+    )
     if account_id is not None:
         stmt = stmt.where(Transaction.account_id == account_id)
     if transaction_type is not None:
@@ -96,10 +99,14 @@ def list_transactions(db: Session, *, account_id=None, transaction_type=None,
     return list(db.scalars(stmt))
 
 
-def delete_transaction(db: Session, transaction_id: str) -> Transaction:
+def delete_transaction(db: Session, *, actor_company_user_id, transaction_id: str) -> Transaction:
     transaction = db.get(Transaction, transaction_id)
     if transaction is None or not transaction.is_active:
         raise TransactionNotFound()
+    exigir_permiso(
+        db, actor_company_user_id, "transactions.write",
+        company_id=transaction.account.company_id,
+    )
     transaction.is_active = False
     db.commit()
     db.refresh(transaction)

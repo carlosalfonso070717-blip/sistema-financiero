@@ -5,10 +5,12 @@ from app.core.errors import ConceptNotFound, DuplicateConcept
 from app.core.validators import clean_text
 from app.models import Concept, ConceptType
 from app.services.company_service import get_active_company_or_fail
+from app.services.role_service import exigir_permiso
 
 
-def create_concept(db: Session, *, company_id, concept_type, name,
+def create_concept(db: Session, *, actor_company_user_id, company_id, concept_type, name,
                    short_description=None, long_description=None) -> Concept:
+    exigir_permiso(db, actor_company_user_id, "concepts.write", company_id=company_id)
     company = get_active_company_or_fail(db, company_id)
     clean_name = clean_text(name, "name", min_len=2, max_len=150)
 
@@ -34,7 +36,9 @@ def create_concept(db: Session, *, company_id, concept_type, name,
     return concept
 
 
-def list_concepts(db: Session, *, company_id, concept_type=None, active_only=None) -> list[Concept]:
+def list_concepts(db: Session, *, actor_company_user_id, company_id, concept_type=None,
+                  active_only=None) -> list[Concept]:
+    exigir_permiso(db, actor_company_user_id, "concepts.read", company_id=company_id)
     stmt = select(Concept).where(Concept.company_id == company_id)
     if concept_type is not None:
         stmt = stmt.where(Concept.concept_type == ConceptType(concept_type))
