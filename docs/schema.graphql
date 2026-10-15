@@ -213,6 +213,7 @@ type Mutation {
   assignPermissionToRole(input: AssignPermissionToRoleInput!): RolePermission!
   removePermissionFromRole(roleId: ID!, permissionId: ID!, actorCompanyUserId: ID!): Boolean!
   assignRole(input: AssignRoleInput!): CompanyUserRole!
+  setRolePermissions(input: SetRolePermissionsInput!, actorCompanyUserId: ID!): RolePermissionUpdate
 }
 
 type Permission {
@@ -222,6 +223,14 @@ type Permission {
   description: String
   isActive: Boolean!
   createdAt: DateTime!
+}
+
+enum PermissionResource {
+  COMPANY_USERS
+  ACCOUNTS
+  CONCEPTS
+  TRANSACTIONS
+  ROLES
 }
 
 type Query {
@@ -236,6 +245,8 @@ type Query {
   role(id: ID!): Role
   permissions(activeOnly: Boolean = null): [Permission!]!
   rolePermissions(roleId: ID!): [RolePermission!]!
+  permissionCatalog(actorCompanyUserId: ID!, resource: PermissionResource = null): [Permission!]!
+  previewRolePermissions(input: SetRolePermissionsInput!, actorCompanyUserId: ID!): RolePermissionPlan
 }
 
 type Role {
@@ -252,6 +263,29 @@ type RolePermission {
   role: Role!
   permission: Permission!
   isActive: Boolean!
+}
+
+type RolePermissionPlan {
+  role: Role!
+  current: [Permission!]!
+  toActivate: [Permission!]!
+  toDeactivate: [Permission!]!
+  unchanged: [Permission!]!
+  finalCount: Int!
+}
+
+type RolePermissionUpdate {
+  role: Role!
+  activated: [Permission!]!
+  deactivated: [Permission!]!
+  unchanged: [Permission!]!
+  finalCount: Int!
+  changed: Boolean!
+}
+
+input SetRolePermissionsInput {
+  roleId: ID!
+  permissionIds: [ID!]!
 }
 
 type Transaction {

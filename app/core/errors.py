@@ -147,3 +147,8 @@ class RolePermissionAlreadyExists(DomainError):
 class RolePermissionNotFound(DomainError):
     code = "ROLE_PERMISSION_NOT_FOUND"
     default_message = "El permiso no está asignado a este rol."
+
+
+class ProtectedRole(DomainError):
+    code = "PROTECTED_ROLE"
+    default_message = "La lista del rol ADMINISTRADOR no se modifica en este laboratorio."

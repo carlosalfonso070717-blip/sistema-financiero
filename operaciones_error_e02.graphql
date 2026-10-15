@@ -1,0 +1,16 @@
+# Unidad II · Actividad 5 · E02, caso que debe fallar
+# Va en un archivo aparte porque GraphQL valida el documento completo:
+# si estuviera en operaciones.graphql, ninguna otra operación se ejecutaría.
+# Variables: variables/actor.json
+
+query CatalogoRecursoInexistente($actor: ID!) {
+  permissionCatalog(resource: PAYMENTS, actorCompanyUserId: $actor) {
+    ...DatosPermiso
+  }
+}
+
+fragment DatosPermiso on Permission {
+  id
+  code
+  name
+}

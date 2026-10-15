@@ -1,4 +1,7 @@
 """Roles, permisos, matriz de permisos por rol y rol de cada membresía."""
+import uuid
+from dataclasses import dataclass
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -9,9 +12,11 @@ from app.core.errors import (
     MembershipNotFound,
     PermissionDenied,
     PermissionNotFound,
+    ProtectedRole,
     RoleNotFound,
     RolePermissionAlreadyExists,
     RolePermissionNotFound,
+    ValidationError,
 )
 from app.core.validators import clean_text
 from app.models import CompanyUser, CompanyUserRole, Permission, Role, RolePermission
@@ -90,6 +95,8 @@ def seed_access_catalog(db: Session) -> None:
         role = _get_role_by_code(db, role_code)
         if role is None:
             continue
+        # Se carga solo si el rol nunca tuvo filas. Un rol con todas sus filas
+        # inactivas es una lista vacía decidida a propósito y no se repone.
         has_rows = db.scalars(
             select(RolePermission).where(RolePermission.role_id == role.id)
         ).first()
@@ -356,3 +363,154 @@ def get_role_by_code_or_fail(db: Session, code: str) -> Role:
     if role is None or not role.is_active:
         raise RoleNotFound(f"El rol {code} no existe o está inactivo.")
     return role
+
+
+# --- Configuración completa de un rol (actividad 5) -----------------------
+
+RESOURCE_PREFIXES = {
+    "COMPANY_USERS": "company.users.",
+    "ACCOUNTS": "accounts.",
+    "CONCEPTS": "concepts.",
+    "TRANSACTIONS": "transactions.",
+    "ROLES": "roles.",
+}
+
+
+@dataclass
+class RolePermissionPlan:
+    role: Role
+    current: list[Permission]
+    to_activate: list[Permission]
+    to_deactivate: list[Permission]
+    unchanged: list[Permission]
+
+    @property
+    def final_count(self) -> int:
+        return len(self.to_activate) + len(self.unchanged)
+
+    @property
+    def changed(self) -> bool:
+        return bool(self.to_activate or self.to_deactivate)
+
+
+def list_permission_catalog(db: Session, *, actor_company_user_id,
+                            resource: str | None = None) -> list[Permission]:
+    exigir_permiso(db, actor_company_user_id, "roles.read")
+    stmt = select(Permission).where(Permission.is_active.is_(True))
+    if resource is not None:
+        stmt = stmt.where(
+            Permission.code.startswith(RESOURCE_PREFIXES[resource], autoescape=True)
+        )
+    return list(db.scalars(stmt.order_by(Permission.code)))
+
+
+def _normalize_id(value, field: str) -> str:
+    """Los id del proyecto son UUID; "ABC..." y "abc..." son el mismo id."""
+    try:
+        return str(uuid.UUID(str(value).strip()))
+    except ValueError:
+        raise ValidationError(f"El {field} '{value}' no es un id válido.") from None
+
+
+def _comparable_id(value) -> str:
+    raw = str(value).strip()
+    try:
+        return str(uuid.UUID(raw))
+    except ValueError:
+        return raw
+
+
+def _by_code(permissions) -> list[Permission]:
+    return sorted(permissions, key=lambda p: p.code)
+
+
+def _validate_proposal(db: Session, role_id, permission_ids) -> tuple[Role, list[Permission]]:
+    role = db.get(Role, _normalize_id(role_id, "roleId"))
+    if role is None:
+        raise RoleNotFound(f"El rol '{role_id}' no existe.")
+    if not role.is_active:
+        raise RoleNotFound(f"El rol {role.code} está inactivo.")
+    if role.code == ADMINISTRADOR:
+        raise ProtectedRole()
+
+    # Primero las repeticiones: "3" y 3, o el mismo UUID en mayúsculas, son el mismo id.
+    keys = [_comparable_id(pid) for pid in permission_ids]
+    repeated = sorted({k for k in keys if keys.count(k) > 1})
+    if repeated:
+        raise ValidationError(f"La lista repite permisos: {', '.join(repeated)}.")
+    ids = [_normalize_id(pid, "permissionId") for pid in permission_ids]
+
+    found = {p.id: p for p in db.scalars(select(Permission).where(Permission.id.in_(ids)))}
+    missing = [pid for pid in ids if pid not in found]
+    if missing:
+        raise PermissionNotFound(f"No existen los permisos: {', '.join(missing)}.")
+    inactive = sorted(p.code for p in found.values() if not p.is_active)
+    if inactive:
+        raise PermissionNotFound(f"Los permisos están inactivos: {', '.join(inactive)}.")
+
+    return role, list(found.values())
+
+
+def _compute_plan(db: Session, role: Role, desired: list[Permission]) -> RolePermissionPlan:
+    current = list(
+        db.scalars(
+            select(Permission)
+            .join(RolePermission, RolePermission.permission_id == Permission.id)
+            .where(RolePermission.role_id == role.id, RolePermission.is_active.is_(True))
+        )
+    )
+    current_ids = {p.id for p in current}
+    desired_ids = {p.id for p in desired}
+    return RolePermissionPlan(
+        role=role,
+        current=_by_code(current),
+        to_activate=_by_code(p for p in desired if p.id not in current_ids),
+        to_deactivate=_by_code(p for p in current if p.id not in desired_ids),
+        unchanged=_by_code(p for p in current if p.id in desired_ids),
+    )
+
+
+def _apply_plan(db: Session, plan: RolePermissionPlan) -> None:
+    """Escribe los cambios en la sesión y hace flush. No confirma."""
+    rows = {
+        row.permission_id: row
+        for row in db.scalars(
+            select(RolePermission).where(RolePermission.role_id == plan.role.id)
+        )
+    }
+    for permission in plan.to_activate:
+        row = rows.get(permission.id)
+        if row is None:
+            db.add(RolePermission(role_id=plan.role.id, permission_id=permission.id))
+        else:
+            # Se reactiva la misma fila: conserva su id y la unicidad de la pareja.
+            row.is_active = True
+    for permission in plan.to_deactivate:
+        rows[permission.id].is_active = False
+    db.flush()
+
+
+def preview_role_permissions(db: Session, *, actor_company_user_id, role_id,
+                             permission_ids) -> RolePermissionPlan:
+    """Solo lee y calcula; no modifica ninguna fila."""
+    exigir_permiso(db, actor_company_user_id, "roles.read")
+    role, desired = _validate_proposal(db, role_id, permission_ids)
+    return _compute_plan(db, role, desired)
+
+
+def set_role_permissions(db: Session, *, actor_company_user_id, role_id,
+                         permission_ids) -> RolePermissionPlan:
+    """Deja exactamente la lista recibida, con un solo commit para todo el cambio."""
+    exigir_permiso(db, actor_company_user_id, "roles.write")
+    role, desired = _validate_proposal(db, role_id, permission_ids)
+    plan = _compute_plan(db, role, desired)
+    if not plan.changed:
+        return plan
+
+    try:
+        _apply_plan(db, plan)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return plan

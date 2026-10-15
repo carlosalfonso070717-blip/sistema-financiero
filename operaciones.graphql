@@ -1,0 +1,135 @@
+# Unidad II · Actividad 5 · Operaciones reproducibles
+# Cada operación tiene nombre. Sus variables están en variables/*.json
+# (la tabla del README dice cuál corresponde a cada una).
+# En GraphiQL: pega este archivo, pon el JSON en el panel Variables
+# y elige con el botón ▶ la operación que quieres ejecutar.
+
+fragment DatosPermiso on Permission {
+  id
+  code
+  name
+}
+
+# E01 · variables/actor.json (o ninguna)
+query ConsultarRoles {
+  roles {
+    id
+    code
+    name
+    isActive
+  }
+}
+
+# E01 · sin variables
+query ConsultarPermisos {
+  permissions {
+    ...DatosPermiso
+    isActive
+  }
+}
+
+# E01 · variables/capturista.json
+query ListaDeCapturista($roleId: ID!) {
+  rolePermissions(roleId: $roleId) {
+    id
+    isActive
+    permission {
+      ...DatosPermiso
+    }
+  }
+}
+
+# E02 · variables/actor.json  (alias + fragmento + variable)
+query ExplorarCatalogo($actor: ID!) {
+  cuentas: permissionCatalog(resource: ACCOUNTS, actorCompanyUserId: $actor) {
+    ...DatosPermiso
+  }
+  movimientos: permissionCatalog(resource: TRANSACTIONS, actorCompanyUserId: $actor) {
+    ...DatosPermiso
+  }
+}
+
+# E02 · variables/actor.json  (sin filtro: los diez permisos activos)
+query CatalogoCompleto($actor: ID!) {
+  permissionCatalog(actorCompanyUserId: $actor) {
+    ...DatosPermiso
+  }
+}
+
+# E03 y E06 · variables/s1_capturista.json o variables/e06_*.json
+query RevisarConfiguracion($actor: ID!, $input: SetRolePermissionsInput!) {
+  previewRolePermissions(input: $input, actorCompanyUserId: $actor) {
+    role {
+      code
+    }
+    current {
+      code
+    }
+    toActivate {
+      code
+    }
+    toDeactivate {
+      code
+    }
+    unchanged {
+      code
+    }
+    finalCount
+  }
+}
+
+# E04, E05, E06, E08 y E09 · variables/s0_capturista.json, s1_capturista.json,
+# vacia_capturista.json o e06_*.json
+mutation AplicarConfiguracion($actor: ID!, $input: SetRolePermissionsInput!) {
+  setRolePermissions(input: $input, actorCompanyUserId: $actor) {
+    role {
+      code
+    }
+    activated {
+      code
+    }
+    deactivated {
+      code
+    }
+    unchanged {
+      code
+    }
+    finalCount
+    changed
+  }
+}
+
+# E10 · variables/e10_consultar_cuentas.json
+query ConsultarCuentas($actor: ID!, $companyId: ID!) {
+  accounts(companyId: $companyId, actorCompanyUserId: $actor) {
+    id
+    name
+    accountType
+    isActive
+  }
+}
+
+# E10 · variables/e10_registrar_movimiento.json
+# Requiere el encabezado Authorization con el token de login de Ana.
+mutation RegistrarMovimiento($actor: ID!, $accountId: ID!, $conceptId: ID!, $amount: Decimal!) {
+  createTransaction(
+    input: {
+      actorCompanyUserId: $actor
+      accountId: $accountId
+      conceptId: $conceptId
+      transactionType: INCOME
+      amount: $amount
+      shortDescription: "Prueba de continuidad E10"
+    }
+  ) {
+    id
+    amount
+    transactionType
+    account {
+      name
+    }
+    concept {
+      name
+    }
+  }
+}

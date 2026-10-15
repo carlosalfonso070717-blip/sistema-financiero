@@ -360,6 +360,88 @@ SELECT r.code, p.code FROM role_permissions rp
 
 Códigos de error nuevos: `PERMISSION_DENIED`, `MEMBERSHIP_NOT_FOUND`, `ROLE_NOT_FOUND`, `PERMISSION_NOT_FOUND`, `DUPLICATE_ROLE`, `DUPLICATE_PERMISSION`, `ROLE_PERMISSION_ALREADY_EXISTS` y `ROLE_PERMISSION_NOT_FOUND`.
 
+## Unidad II · Actividad 5: configurar permisos con GraphQL
+
+### Integrantes y aportaciones
+
+| Integrante | Aportación |
+| --- | --- |
+| _(nombre)_ | _(qué hizo)_ |
+| _(nombre)_ | _(qué hizo)_ |
+
+### Qué se agregó
+
+Tres funcionalidades sobre la tabla `role_permissions`, todas en `app/services/role_service.py`:
+
+| Operación | Tipo | Permiso que exige | Qué hace |
+| --- | --- | --- | --- |
+| `permissionCatalog(actorCompanyUserId, resource)` | query | roles.read | Permisos activos, filtrados por recurso con el enum `PermissionResource` |
+| `previewRolePermissions(input, actorCompanyUserId)` | query | roles.read | Valida la lista propuesta y calcula qué se activa, se desactiva y no cambia. No escribe |
+| `setRolePermissions(input, actorCompanyUserId)` | mutation | roles.write | Deja exactamente la lista recibida, con un solo `commit` |
+
+- **Cálculo compartido:** la previsualización y la aplicación usan las mismas funciones `_validate_proposal` y `_compute_plan`.
+- **Atomicidad:** `_apply_plan` hace `flush` sin confirmar. `set_role_permissions` confirma una sola vez, y si algo falla hace `rollback`.
+- **Idempotencia:** repetir la misma lista devuelve `changed: false` y no escribe nada.
+- **Reactivación:** una pareja que estuvo inactiva se reactiva en la misma fila, así que conserva su id. La restricción `uq_role_permission` (role_id, permission_id) evita duplicados.
+- **Validaciones:**
+  - El rol debe existir y estar activo, y no puede ser `ADMINISTRADOR` (regla de este laboratorio).
+  - Cada permiso debe existir y estar activo.
+  - No se aceptan ids repetidos: `"abc"` y `"ABC"` cuentan como el mismo UUID.
+  - La lista vacía `[]` es válida y desactiva todas las relaciones del rol.
+- **Carga inicial:** solo carga la matriz en un rol que **nunca** tuvo filas. Un rol con todas sus filas inactivas es una lista vacía decidida a propósito y no se repone al reiniciar.
+
+No se modificó la estructura de ninguna tabla, así que no hace falta migración: la restricción de unicidad ya existía desde la actividad 3.
+
+### Dependencias e inicio
+
+```bash
+python -m pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
+```
+
+GraphiQL queda en <http://localhost:8000/graphql>. La base es SQLite (`financial.db`), y las consultas de verificación están en `comprobaciones.sql`.
+
+### Preparar los datos
+
+1. Crea la empresa y a Ana con `createCompany` y `createCompanyAdmin`, como en la actividad 3.
+2. Obtén los id reales con las operaciones `ConsultarRoles` y `ConsultarPermisos`.
+3. En `variables/*.json`, reemplaza `ID_MEMBRESIA_ANA` por el id de la membresía de Ana. Los id de roles y permisos ya son los de nuestra base. Si la base se vuelve a crear, cambian y hay que actualizarlos.
+
+### Operaciones y variables
+
+Las operaciones están en `operaciones.graphql`. En GraphiQL se pega el archivo completo, se pone el JSON en **Variables** y se elige la operación con el botón ▶.
+
+| Operación | Archivo de variables | Caso |
+| --- | --- | --- |
+| `ConsultarRoles`, `ConsultarPermisos` | ninguno | E01 |
+| `ListaDeCapturista` | `variables/capturista.json` (solo `roleId`) | E01 |
+| `ExplorarCatalogo` (alias + fragmento) | `variables/actor.json` | E02 |
+| `CatalogoCompleto` | `variables/actor.json` | E02 |
+| `CatalogoRecursoInexistente` (en `operaciones_error_e02.graphql`) | `variables/actor.json` | E02 |
+| `RevisarConfiguracion` | `variables/s1_capturista.json` | E03 |
+| `AplicarConfiguracion` | `variables/s1_capturista.json` (dos veces) | E04 |
+| `AplicarConfiguracion` | `variables/s0_capturista.json` y luego `s1_capturista.json` | E05 |
+| `RevisarConfiguracion` y `AplicarConfiguracion` | `variables/e06_*.json` | E06 |
+| `AplicarConfiguracion` | `variables/vacia_capturista.json` | E08 |
+| `AplicarConfiguracion` | `variables/s0_capturista.json` | E09 |
+| `ConsultarCuentas`, `RegistrarMovimiento` | `variables/e10_*.json` | E10 |
+
+`CatalogoRecursoInexistente` va en un archivo aparte porque GraphQL valida el documento completo, y un error de validación impediría ejecutar las demás operaciones.
+
+Los casos de E06 que requieren un rol o un permiso inactivo se preparan y se restauran con las sentencias de la sección 6 de `comprobaciones.sql`.
+
+### Prueba E07 (reversión)
+
+```bash
+python -m unittest tests.test_e07_rollback -v
+```
+
+La prueba usa una base temporal, así que no toca `financial.db`. Reemplaza el `commit` de la sesión por uno que falla justo después del `flush`. Comprueba que en ese punto los cambios ya estaban escritos sin confirmar, y luego verifica desde una sesión nueva que la configuración quedó igual que antes.
+
+### Archivos de la entrega
+
+`investigacion.md`, `operaciones.graphql`, `operaciones_error_e02.graphql`, `variables/`, `configuracion_inicial.json`, `configuracion_final.json`, `comprobaciones.sql`, `evidencias.md`, `evidencias/` y `tests/`.
+
 ## Pendiente
 
 Las mutations `createCompany` y `createCompanyAdmin` se exponen sin autenticación, ya que el administrador de plataforma todavía no existe como registro en el sistema. En una versión posterior quedarían protegidas por un rol de superusuario.

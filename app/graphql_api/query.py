@@ -3,7 +3,14 @@ from strawberry.types import Info
 
 from app.schemas.account import Account, AccountConcept, AccountType, Concept, ConceptType
 from app.schemas.company import Company
-from app.schemas.role import Permission, Role, RolePermission
+from app.schemas.role import (
+    Permission,
+    PermissionResource,
+    Role,
+    RolePermission,
+    RolePermissionPlan,
+    SetRolePermissionsInput,
+)
 from app.schemas.transaction import Transaction, TransactionType
 from app.schemas.user import CompanyUser
 from app.services import (
@@ -112,3 +119,29 @@ class Query:
     def role_permissions(self, info: Info, role_id: strawberry.ID) -> list[RolePermission]:
         rows = role_service.list_role_permissions(info.context.db, str(role_id))
         return [RolePermission.from_model(r) for r in rows]
+
+    @strawberry.field
+    def permission_catalog(
+        self,
+        info: Info,
+        actor_company_user_id: strawberry.ID,
+        resource: PermissionResource | None = None,
+    ) -> list[Permission]:
+        rows = role_service.list_permission_catalog(
+            info.context.db,
+            actor_company_user_id=str(actor_company_user_id),
+            resource=resource.value if resource else None,
+        )
+        return [Permission.from_model(p) for p in rows]
+
+    @strawberry.field
+    def preview_role_permissions(
+        self, info: Info, input: SetRolePermissionsInput, actor_company_user_id: strawberry.ID
+    ) -> RolePermissionPlan | None:
+        plan = role_service.preview_role_permissions(
+            info.context.db,
+            actor_company_user_id=str(actor_company_user_id),
+            role_id=input.role_id,
+            permission_ids=input.permission_ids,
+        )
+        return RolePermissionPlan.from_plan(plan)

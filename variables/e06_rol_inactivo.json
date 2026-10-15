@@ -1,0 +1,12 @@
+{
+  "actor": "9a328ac2-290b-498a-bddd-f06df593abd4",
+  "input": {
+    "roleId": "b4904b76-7fde-46e5-90ac-70e0ad85c199",
+    "permissionIds": [
+      "215067ec-baac-4d8e-b949-007da2f2cf5e",
+      "39077d55-6666-4eb3-a7b5-1da27192c760",
+      "4601403e-b7b2-4938-93fe-699f0f36ccd1",
+      "5959f7f9-1b90-4bdb-98f8-ad6e6bafc0d0"
+    ]
+  }
+}

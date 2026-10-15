@@ -17,6 +17,8 @@ from app.schemas.role import (
     Permission,
     Role,
     RolePermission,
+    RolePermissionUpdate,
+    SetRolePermissionsInput,
 )
 from app.schemas.transaction import CreateTransactionInput, Transaction
 from app.schemas.user import (
@@ -256,3 +258,15 @@ class Mutation:
             role_id=str(input.role_id),
         )
         return CompanyUserRole.from_model(model)
+
+    @strawberry.mutation
+    def set_role_permissions(
+        self, info: Info, input: SetRolePermissionsInput, actor_company_user_id: strawberry.ID
+    ) -> RolePermissionUpdate | None:
+        plan = role_service.set_role_permissions(
+            info.context.db,
+            actor_company_user_id=str(actor_company_user_id),
+            role_id=input.role_id,
+            permission_ids=input.permission_ids,
+        )
+        return RolePermissionUpdate.from_plan(plan)

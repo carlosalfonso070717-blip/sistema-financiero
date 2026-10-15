@@ -1,3 +1,4 @@
+import enum
 from datetime import datetime
 
 import strawberry
@@ -81,3 +82,64 @@ class AssignPermissionToRoleInput:
     actor_company_user_id: strawberry.ID
     role_id: strawberry.ID
     permission_id: strawberry.ID
+
+
+@strawberry.enum
+class PermissionResource(enum.Enum):
+    COMPANY_USERS = "COMPANY_USERS"
+    ACCOUNTS = "ACCOUNTS"
+    CONCEPTS = "CONCEPTS"
+    TRANSACTIONS = "TRANSACTIONS"
+    ROLES = "ROLES"
+
+
+@strawberry.input
+class SetRolePermissionsInput:
+    role_id: strawberry.ID
+    permission_ids: list[strawberry.ID]
+
+
+def _permissions(rows) -> list[Permission]:
+    return [Permission.from_model(p) for p in rows]
+
+
+@strawberry.type
+class RolePermissionPlan:
+    role: Role
+    current: list[Permission]
+    to_activate: list[Permission]
+    to_deactivate: list[Permission]
+    unchanged: list[Permission]
+    final_count: int
+
+    @classmethod
+    def from_plan(cls, plan) -> "RolePermissionPlan":
+        return cls(
+            role=Role.from_model(plan.role),
+            current=_permissions(plan.current),
+            to_activate=_permissions(plan.to_activate),
+            to_deactivate=_permissions(plan.to_deactivate),
+            unchanged=_permissions(plan.unchanged),
+            final_count=plan.final_count,
+        )
+
+
+@strawberry.type
+class RolePermissionUpdate:
+    role: Role
+    activated: list[Permission]
+    deactivated: list[Permission]
+    unchanged: list[Permission]
+    final_count: int
+    changed: bool
+
+    @classmethod
+    def from_plan(cls, plan) -> "RolePermissionUpdate":
+        return cls(
+            role=Role.from_model(plan.role),
+            activated=_permissions(plan.to_activate),
+            deactivated=_permissions(plan.to_deactivate),
+            unchanged=_permissions(plan.unchanged),
+            final_count=plan.final_count,
+            changed=plan.changed,
+        )
