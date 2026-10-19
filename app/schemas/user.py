@@ -78,7 +78,6 @@ class CompanyUserRole:
 
 @strawberry.input
 class AssignRoleInput:
-    actor_company_user_id: strawberry.ID
     company_user_id: strawberry.ID
     role_id: strawberry.ID
 
@@ -87,6 +86,8 @@ class AssignRoleInput:
 class LoginInput:
     email: str
     password: str
+    # Solo hace falta si la persona pertenece a más de una empresa.
+    company_id: strawberry.ID | None = None
 
 
 @strawberry.type
@@ -113,7 +114,6 @@ class CreateCompanyAdminInput:
 
 @strawberry.input
 class CreateCompanyUserInput:
-    actor_company_user_id: strawberry.ID
     company_id: strawberry.ID
     name: str
     email: str

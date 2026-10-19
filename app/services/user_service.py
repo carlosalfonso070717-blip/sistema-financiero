@@ -7,8 +7,9 @@ from app.core.errors import (
     EmailAlreadyExists,
     InvalidCredentials,
     MembershipAlreadyExists,
+    ValidationError,
 )
-from app.core.security import create_access_token, hash_password, verify_password
+from app.core.security import crear_token, hash_password, verify_password
 from app.core.validators import clean_text, normalize_email, validate_password
 from app.models import CompanyUser, User
 from app.services.company_service import get_active_company_or_fail
@@ -110,7 +111,9 @@ def deactivate_company_user(db: Session, *, actor_company_user_id,
     return membership
 
 
-def login(db: Session, *, email: str, password: str) -> tuple[str, User]:
+def login(db: Session, *, email: str, password: str,
+          company_id: str | None = None) -> tuple[str, User]:
+    """Comprueba el hash y, si coincide, firma un token para una sola membresía."""
     try:
         clean_email = normalize_email(email)
     except Exception:
@@ -123,7 +126,21 @@ def login(db: Session, *, email: str, password: str) -> tuple[str, User]:
 
     if not user.is_active:
         raise AccountDisabled()
-    if user.memberships and not any(m.is_active for m in user.memberships):
+
+    active = [m for m in user.memberships if m.is_active]
+    if not active:
         raise AccountDisabled()
 
-    return create_access_token(user.id), user
+    # Cada token vale para una empresa. Si la persona está en varias, indica cuál.
+    if company_id is not None:
+        active = [m for m in active if m.company_id == str(company_id)]
+        if not active:
+            raise InvalidCredentials("El usuario no tiene una membresía activa en esa empresa.")
+    elif len(active) > 1:
+        raise ValidationError(
+            "El usuario pertenece a varias empresas; indica companyId para iniciar sesión."
+        )
+
+    membership = active[0]
+    # companyId sale de la fila de la membresía, no de lo que envía el cliente.
+    return crear_token(membership.id, membership.company_id), user

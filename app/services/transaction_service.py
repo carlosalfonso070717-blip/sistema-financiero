@@ -7,11 +7,9 @@ from sqlalchemy.orm import Session
 from app.core.errors import (
     CompanyMismatch,
     ConceptNotAllowed,
-    Forbidden,
     InvalidAmount,
     TransactionNotFound,
     TransactionTypeMismatch,
-    Unauthenticated,
 )
 from app.models import Account, AccountConcept, Transaction
 from app.models.transaction import TransactionType
@@ -20,12 +18,9 @@ from app.services.concept_service import get_active_concept_or_fail
 from app.services.role_service import exigir_permiso
 
 
-def create_transaction(db: Session, *, current_user, actor_company_user_id, account_id,
+def create_transaction(db: Session, *, actor_company_user_id, account_id,
                        concept_id, transaction_type, amount, transaction_date=None,
                        short_description=None, long_description=None) -> Transaction:
-    if current_user is None:
-        raise Unauthenticated()
-
     amount = Decimal(str(amount))
     if amount <= 0:
         raise InvalidAmount()
@@ -39,8 +34,6 @@ def create_transaction(db: Session, *, current_user, actor_company_user_id, acco
     membership = exigir_permiso(
         db, actor_company_user_id, "transactions.write", company_id=account.company_id
     )
-    if membership.user_id != current_user.id:
-        raise Forbidden("La membresía indicada no corresponde al usuario autenticado.")
 
     relation = db.scalars(
         select(AccountConcept).where(
@@ -65,7 +58,7 @@ def create_transaction(db: Session, *, current_user, actor_company_user_id, acco
         transaction_type=tx_type,
         amount=amount,
         transaction_date=transaction_date or datetime.now(timezone.utc),
-        captured_by=current_user.id,
+        captured_by=membership.user_id,
         short_description=short_description.strip() if short_description else None,
         long_description=long_description.strip() if long_description else None,
     )

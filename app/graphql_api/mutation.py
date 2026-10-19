@@ -1,6 +1,8 @@
 import strawberry
 from strawberry.types import Info
 
+from app.graphql_api.auth import leer_actor
+
 from app.schemas.account import (
     Account,
     AccountConcept,
@@ -89,7 +91,7 @@ class Mutation:
     def create_company_user(self, info: Info, input: CreateCompanyUserInput) -> CompanyUser:
         model = user_service.create_company_user(
             info.context.db,
-            actor_company_user_id=str(input.actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             company_id=str(input.company_id),
             name=input.name,
             email=input.email,
@@ -99,11 +101,11 @@ class Mutation:
 
     @strawberry.mutation
     def deactivate_company_user(
-        self, info: Info, id: strawberry.ID, actor_company_user_id: strawberry.ID
+        self, info: Info, id: strawberry.ID
     ) -> CompanyUser:
         model = user_service.deactivate_company_user(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             membership_id=str(id),
         )
         return CompanyUser.from_model(model)
@@ -111,11 +113,14 @@ class Mutation:
     @strawberry.mutation
     def login(self, info: Info, input: LoginInput) -> AuthPayload:
         token, user = user_service.login(
-            info.context.db, email=input.email, password=input.password
+            info.context.db,
+            email=input.email,
+            password=input.password,
+            company_id=str(input.company_id) if input.company_id else None,
         )
         return AuthPayload(
             token=token,
-            token_type="Bearer",
+            token_type="bearer",
             user=AuthUser(id=strawberry.ID(user.id), name=user.name, email=user.email),
         )
 
@@ -123,7 +128,7 @@ class Mutation:
     def create_account(self, info: Info, input: CreateAccountInput) -> Account:
         model = account_service.create_account(
             info.context.db,
-            actor_company_user_id=str(input.actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             company_id=str(input.company_id),
             account_type=input.account_type,
             name=input.name,
@@ -140,7 +145,7 @@ class Mutation:
     def create_concept(self, info: Info, input: CreateConceptInput) -> Concept:
         model = concept_service.create_concept(
             info.context.db,
-            actor_company_user_id=str(input.actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             company_id=str(input.company_id),
             concept_type=input.concept_type,
             name=input.name,
@@ -155,7 +160,7 @@ class Mutation:
     ) -> AccountConcept:
         model = account_service.assign_concept_to_account(
             info.context.db,
-            actor_company_user_id=str(input.actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             account_id=str(input.account_id),
             concept_id=str(input.concept_id),
         )
@@ -167,11 +172,10 @@ class Mutation:
         info: Info,
         account_id: strawberry.ID,
         concept_id: strawberry.ID,
-        actor_company_user_id: strawberry.ID,
     ) -> bool:
         return account_service.remove_concept_from_account(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             account_id=str(account_id),
             concept_id=str(concept_id),
         )
@@ -180,8 +184,7 @@ class Mutation:
     def create_transaction(self, info: Info, input: CreateTransactionInput) -> Transaction:
         model = transaction_service.create_transaction(
             info.context.db,
-            actor_company_user_id=str(input.actor_company_user_id),
-            current_user=info.context.user,
+            actor_company_user_id=leer_actor(info),
             account_id=str(input.account_id),
             concept_id=str(input.concept_id),
             transaction_type=input.transaction_type,
@@ -194,11 +197,11 @@ class Mutation:
 
     @strawberry.mutation
     def delete_transaction(
-        self, info: Info, id: strawberry.ID, actor_company_user_id: strawberry.ID
+        self, info: Info, id: strawberry.ID
     ) -> Transaction:
         model = transaction_service.delete_transaction(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             transaction_id=str(id),
         )
         return Transaction.from_model(model)
@@ -228,7 +231,7 @@ class Mutation:
     ) -> RolePermission:
         model = role_service.assign_permission_to_role(
             info.context.db,
-            actor_company_user_id=str(input.actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             role_id=str(input.role_id),
             permission_id=str(input.permission_id),
         )
@@ -240,11 +243,10 @@ class Mutation:
         info: Info,
         role_id: strawberry.ID,
         permission_id: strawberry.ID,
-        actor_company_user_id: strawberry.ID,
     ) -> bool:
         return role_service.remove_permission_from_role(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             role_id=str(role_id),
             permission_id=str(permission_id),
         )
@@ -253,7 +255,7 @@ class Mutation:
     def assign_role(self, info: Info, input: AssignRoleInput) -> CompanyUserRole:
         model = role_service.assign_role(
             info.context.db,
-            actor_company_user_id=str(input.actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             company_user_id=str(input.company_user_id),
             role_id=str(input.role_id),
         )
@@ -261,11 +263,11 @@ class Mutation:
 
     @strawberry.mutation
     def set_role_permissions(
-        self, info: Info, input: SetRolePermissionsInput, actor_company_user_id: strawberry.ID
+        self, info: Info, input: SetRolePermissionsInput
     ) -> RolePermissionUpdate | None:
         plan = role_service.set_role_permissions(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             role_id=input.role_id,
             permission_ids=input.permission_ids,
         )

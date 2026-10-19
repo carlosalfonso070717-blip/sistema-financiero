@@ -53,7 +53,6 @@ class Transaction:
 
 @strawberry.input
 class CreateTransactionInput:
-    actor_company_user_id: strawberry.ID
     account_id: strawberry.ID
     concept_id: strawberry.ID
     transaction_type: TransactionType

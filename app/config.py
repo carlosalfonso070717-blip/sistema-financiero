@@ -6,9 +6,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "sqlite:///./financial.db"
-    secret_key: str = "cambiar-esta-clave-en-produccion"
-    algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
+    # Sin valor por defecto: el secreto se toma del ambiente (JWT_SECRET) o de .env.
+    jwt_secret: str = ""
+    access_token_expire_minutes: int = 30
 
 
 settings = Settings()

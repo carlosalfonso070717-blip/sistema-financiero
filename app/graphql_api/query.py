@@ -1,6 +1,8 @@
 import strawberry
 from strawberry.types import Info
 
+from app.graphql_api.auth import leer_actor
+
 from app.schemas.account import Account, AccountConcept, AccountType, Concept, ConceptType
 from app.schemas.company import Company
 from app.schemas.role import (
@@ -45,13 +47,12 @@ class Query:
         self,
         info: Info,
         company_id: strawberry.ID,
-        actor_company_user_id: strawberry.ID,
         account_type: AccountType | None = None,
         active_only: bool | None = None,
     ) -> list[Account]:
         rows = account_service.list_accounts(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             company_id=str(company_id),
             account_type=account_type,
             active_only=active_only,
@@ -63,13 +64,12 @@ class Query:
         self,
         info: Info,
         company_id: strawberry.ID,
-        actor_company_user_id: strawberry.ID,
         concept_type: ConceptType | None = None,
         active_only: bool | None = None,
     ) -> list[Concept]:
         rows = concept_service.list_concepts(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             company_id=str(company_id),
             concept_type=concept_type,
             active_only=active_only,
@@ -85,7 +85,6 @@ class Query:
     def transactions(
         self,
         info: Info,
-        actor_company_user_id: strawberry.ID,
         account_id: strawberry.ID | None = None,
         transaction_type: TransactionType | None = None,
         limit: int | None = None,
@@ -93,7 +92,7 @@ class Query:
     ) -> list[Transaction]:
         rows = transaction_service.list_transactions(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             account_id=str(account_id) if account_id else None,
             transaction_type=transaction_type,
             limit=limit,
@@ -124,23 +123,22 @@ class Query:
     def permission_catalog(
         self,
         info: Info,
-        actor_company_user_id: strawberry.ID,
         resource: PermissionResource | None = None,
     ) -> list[Permission]:
         rows = role_service.list_permission_catalog(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             resource=resource.value if resource else None,
         )
         return [Permission.from_model(p) for p in rows]
 
     @strawberry.field
     def preview_role_permissions(
-        self, info: Info, input: SetRolePermissionsInput, actor_company_user_id: strawberry.ID
+        self, info: Info, input: SetRolePermissionsInput
     ) -> RolePermissionPlan | None:
         plan = role_service.preview_role_permissions(
             info.context.db,
-            actor_company_user_id=str(actor_company_user_id),
+            actor_company_user_id=leer_actor(info),
             role_id=input.role_id,
             permission_ids=input.permission_ids,
         )

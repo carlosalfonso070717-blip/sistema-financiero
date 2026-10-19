@@ -79,7 +79,6 @@ class CreatePermissionInput:
 
 @strawberry.input
 class AssignPermissionToRoleInput:
-    actor_company_user_id: strawberry.ID
     role_id: strawberry.ID
     permission_id: strawberry.ID
 

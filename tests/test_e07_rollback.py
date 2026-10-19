@@ -11,6 +11,7 @@ from unittest import mock
 # Base de datos temporal: la prueba no toca financial.db.
 _tmp = tempfile.TemporaryDirectory()
 os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_tmp.name, 'e07.db')}"
+os.environ.setdefault("JWT_SECRET", "secreto-solo-para-pruebas")
 
 from sqlalchemy import select  # noqa: E402
 

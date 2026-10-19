@@ -1,4 +1,6 @@
 # Unidad II · Actividad 5 · Operaciones reproducibles
+# Desde la actividad 6, todas las operaciones protegidas toman a la persona del
+# token: haz login y pon en Headers  { "Authorization": "Bearer TOKEN" }.
 # Cada operación tiene nombre. Sus variables están en variables/*.json
 # (la tabla del README dice cuál corresponde a cada una).
 # En GraphiQL: pega este archivo, pon el JSON en el panel Variables
@@ -10,7 +12,7 @@ fragment DatosPermiso on Permission {
   name
 }
 
-# E01 · variables/actor.json (o ninguna)
+# E01 · sin variables (o ninguna)
 query ConsultarRoles {
   roles {
     id
@@ -39,26 +41,26 @@ query ListaDeCapturista($roleId: ID!) {
   }
 }
 
-# E02 · variables/actor.json  (alias + fragmento + variable)
-query ExplorarCatalogo($actor: ID!) {
-  cuentas: permissionCatalog(resource: ACCOUNTS, actorCompanyUserId: $actor) {
+# E02 · sin variables (alias + fragmento + variable)
+query ExplorarCatalogo {
+  cuentas: permissionCatalog(resource: ACCOUNTS) {
     ...DatosPermiso
   }
-  movimientos: permissionCatalog(resource: TRANSACTIONS, actorCompanyUserId: $actor) {
+  movimientos: permissionCatalog(resource: TRANSACTIONS) {
     ...DatosPermiso
   }
 }
 
-# E02 · variables/actor.json  (sin filtro: los diez permisos activos)
-query CatalogoCompleto($actor: ID!) {
-  permissionCatalog(actorCompanyUserId: $actor) {
+# E02 · sin variables (sin filtro: los diez permisos activos)
+query CatalogoCompleto {
+  permissionCatalog {
     ...DatosPermiso
   }
 }
 
 # E03 y E06 · variables/s1_capturista.json o variables/e06_*.json
-query RevisarConfiguracion($actor: ID!, $input: SetRolePermissionsInput!) {
-  previewRolePermissions(input: $input, actorCompanyUserId: $actor) {
+query RevisarConfiguracion($input: SetRolePermissionsInput!) {
+  previewRolePermissions(input: $input) {
     role {
       code
     }
@@ -80,8 +82,8 @@ query RevisarConfiguracion($actor: ID!, $input: SetRolePermissionsInput!) {
 
 # E04, E05, E06, E08 y E09 · variables/s0_capturista.json, s1_capturista.json,
 # vacia_capturista.json o e06_*.json
-mutation AplicarConfiguracion($actor: ID!, $input: SetRolePermissionsInput!) {
-  setRolePermissions(input: $input, actorCompanyUserId: $actor) {
+mutation AplicarConfiguracion($input: SetRolePermissionsInput!) {
+  setRolePermissions(input: $input) {
     role {
       code
     }
@@ -100,8 +102,8 @@ mutation AplicarConfiguracion($actor: ID!, $input: SetRolePermissionsInput!) {
 }
 
 # E10 · variables/e10_consultar_cuentas.json
-query ConsultarCuentas($actor: ID!, $companyId: ID!) {
-  accounts(companyId: $companyId, actorCompanyUserId: $actor) {
+query ConsultarCuentas($companyId: ID!) {
+  accounts(companyId: $companyId) {
     id
     name
     accountType
@@ -110,11 +112,10 @@ query ConsultarCuentas($actor: ID!, $companyId: ID!) {
 }
 
 # E10 · variables/e10_registrar_movimiento.json
-# Requiere el encabezado Authorization con el token de login de Ana.
-mutation RegistrarMovimiento($actor: ID!, $accountId: ID!, $conceptId: ID!, $amount: Decimal!) {
+
+mutation RegistrarMovimiento($accountId: ID!, $conceptId: ID!, $amount: Decimal!) {
   createTransaction(
     input: {
-      actorCompanyUserId: $actor
       accountId: $accountId
       conceptId: $conceptId
       transactionType: INCOME

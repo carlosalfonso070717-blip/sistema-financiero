@@ -375,9 +375,9 @@ Tres funcionalidades sobre la tabla `role_permissions`, todas en `app/services/r
 
 | Operación | Tipo | Permiso que exige | Qué hace |
 | --- | --- | --- | --- |
-| `permissionCatalog(actorCompanyUserId, resource)` | query | roles.read | Permisos activos, filtrados por recurso con el enum `PermissionResource` |
-| `previewRolePermissions(input, actorCompanyUserId)` | query | roles.read | Valida la lista propuesta y calcula qué se activa, se desactiva y no cambia. No escribe |
-| `setRolePermissions(input, actorCompanyUserId)` | mutation | roles.write | Deja exactamente la lista recibida, con un solo `commit` |
+| `permissionCatalog(resource)` | query | roles.read | Permisos activos, filtrados por recurso con el enum `PermissionResource` |
+| `previewRolePermissions(input)` | query | roles.read | Valida la lista propuesta y calcula qué se activa, se desactiva y no cambia. No escribe |
+| `setRolePermissions(input)` | mutation | roles.write | Deja exactamente la lista recibida, con un solo `commit` |
 
 - **Cálculo compartido:** la previsualización y la aplicación usan las mismas funciones `_validate_proposal` y `_compute_plan`.
 - **Atomicidad:** `_apply_plan` hace `flush` sin confirmar. `set_role_permissions` confirma una sola vez, y si algo falla hace `rollback`.
@@ -405,7 +405,7 @@ GraphiQL queda en <http://localhost:8000/graphql>. La base es SQLite (`financial
 
 1. Crea la empresa y a Ana con `createCompany` y `createCompanyAdmin`, como en la actividad 3.
 2. Obtén los id reales con las operaciones `ConsultarRoles` y `ConsultarPermisos`.
-3. En `variables/*.json`, reemplaza `ID_MEMBRESIA_ANA` por el id de la membresía de Ana. Los id de roles y permisos ya son los de nuestra base. Si la base se vuelve a crear, cambian y hay que actualizarlos.
+3. Haz `login` con Ana y pon su token en **Headers** (ver actividad 6). Los id de roles y permisos de `variables/*.json` son los de nuestra base. Si la base se vuelve a crear, cambian y hay que actualizarlos.
 
 ### Operaciones y variables
 
@@ -415,9 +415,9 @@ Las operaciones están en `operaciones.graphql`. En GraphiQL se pega el archivo 
 | --- | --- | --- |
 | `ConsultarRoles`, `ConsultarPermisos` | ninguno | E01 |
 | `ListaDeCapturista` | `variables/capturista.json` (solo `roleId`) | E01 |
-| `ExplorarCatalogo` (alias + fragmento) | `variables/actor.json` | E02 |
-| `CatalogoCompleto` | `variables/actor.json` | E02 |
-| `CatalogoRecursoInexistente` (en `operaciones_error_e02.graphql`) | `variables/actor.json` | E02 |
+| `ExplorarCatalogo` (alias + fragmento) | ninguno | E02 |
+| `CatalogoCompleto` | ninguno | E02 |
+| `CatalogoRecursoInexistente` (en `operaciones_error_e02.graphql`) | ninguno | E02 |
 | `RevisarConfiguracion` | `variables/s1_capturista.json` | E03 |
 | `AplicarConfiguracion` | `variables/s1_capturista.json` (dos veces) | E04 |
 | `AplicarConfiguracion` | `variables/s0_capturista.json` y luego `s1_capturista.json` | E05 |
@@ -441,6 +441,75 @@ La prueba usa una base temporal, así que no toca `financial.db`. Reemplaza el `
 ### Archivos de la entrega
 
 `investigacion.md`, `operaciones.graphql`, `operaciones_error_e02.graphql`, `variables/`, `configuracion_inicial.json`, `configuracion_final.json`, `comprobaciones.sql`, `evidencias.md`, `evidencias/` y `tests/`.
+
+## Unidad II · Actividad 6: control de acceso según el rol
+
+El cliente ya no elige quién es. `login` comprueba el hash de la contraseña y, si coincide, el servidor firma un **JWT** (HS256, 30 minutos). Cada ruta protegida lee la membresía de ese token y luego aplica `exigir_permiso`, con el mismo permiso de antes. El argumento `actorCompanyUserId` **ya no existe** en ninguna operación.
+
+> Los ejemplos de las actividades 3 y 4 de este README que todavía muestran `actorCompanyUserId` son históricos. Hoy esas operaciones se llaman **sin** ese argumento y con el token en el encabezado.
+
+### El secreto (JWT_SECRET)
+
+El secreto no está en el código ni en Git: se lee de la variable de ambiente `JWT_SECRET`, o del archivo `.env`, que está en `.gitignore`. Para configurarlo, una sola vez:
+
+```bash
+cp .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"
+# pega el resultado en .env:  JWT_SECRET=<el texto de 64 caracteres>
+python -m pip install -r requirements.txt   # instala PyJWT
+python -m uvicorn app.main:app --reload
+```
+
+Si falta `JWT_SECRET`, el servidor no arranca y explica cómo generarlo. `.env.example` trae la variable documentada, sin un valor real.
+
+### Qué lleva el token
+
+| Dato | Para qué |
+| --- | --- |
+| `companyUserId` | La membresía con la que entró la persona |
+| `companyId` | La empresa de esa membresía; la copia el servidor desde la fila, el cliente no la elige |
+| `exp` | Vencimiento (30 minutos) |
+
+No lleva la contraseña, el hash ni los permisos. El rol se lee en MySQL/SQLite en **cada** petición, así que un `assignRole` se nota en la siguiente petición con el mismo token. Si una persona pertenece a varias empresas, envía `companyId` en `login` y obtiene un token por empresa.
+
+Para ver los datos legibles de un token, sin la firma:
+```bash
+python -c "import jwt,sys; print(jwt.decode(sys.argv[1], options={'verify_signature': False}))" PEGAR_TOKEN
+```
+
+### Cómo se valida en cada ruta
+
+`leer_actor`, en `app/graphql_api/auth.py`, hace estas comprobaciones en orden. Cualquier falla responde `UNAUTHENTICATED` y no escribe nada:
+
+1. ¿Viene `Authorization: Bearer ...` y la firma es válida? Solo se acepta HS256.
+2. ¿`exp` todavía no pasó?
+3. ¿La membresía existe, está activa y es de la empresa del token?
+
+Después, `exigir_permiso` revisa el rol activo, igual que antes (`PERMISSION_DENIED`). Si el recurso pertenece a otra empresa, responde `COMPANY_MISMATCH`.
+
+| Ruta | Permiso |
+| --- | --- |
+| createCompanyUser, deactivateCompanyUser | company.users.write |
+| accounts, createAccount | accounts.read, accounts.write |
+| concepts, createConcept, assignConceptToAccount, removeConceptFromAccount | concepts.read, concepts.write |
+| transactions, createTransaction, deleteTransaction | transactions.read, transactions.write |
+| permissionCatalog, previewRolePermissions | roles.read |
+| setRolePermissions, assignRole, assignPermissionToRole, removePermissionFromRole | roles.write |
+
+`login`, `createCompany` y `createCompanyAdmin` no piden token.
+
+### Uso en GraphiQL
+
+1. Ejecuta `mutation { login(input: { email: "...", password: "..." }) { tokenType token user { name } } }`.
+2. En el panel **Headers** escribe `{ "Authorization": "Bearer TOKEN_QUE_DEVOLVIO_LOGIN" }`.
+3. Ejecuta las demás operaciones sin `actorCompanyUserId`.
+
+No pegues tokens vigentes en capturas, chats ni en el repositorio.
+
+Para probar un token vencido, genera uno ya caducado en la máquina del servidor (usa el mismo `JWT_SECRET` del `.env`):
+```bash
+python -c "from app.core.security import crear_token; print(crear_token('ID_MEMBRESIA', 'ID_EMPRESA', minutos=-1))"
+```
 
 ## Pendiente
 

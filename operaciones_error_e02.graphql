@@ -1,10 +1,10 @@
 # Unidad II · Actividad 5 · E02, caso que debe fallar
 # Va en un archivo aparte porque GraphQL valida el documento completo:
 # si estuviera en operaciones.graphql, ninguna otra operación se ejecutaría.
-# Variables: variables/actor.json
+# Sin variables. Requiere el token de Ana en Headers.
 
-query CatalogoRecursoInexistente($actor: ID!) {
-  permissionCatalog(resource: PAYMENTS, actorCompanyUserId: $actor) {
+query CatalogoRecursoInexistente {
+  permissionCatalog(resource: PAYMENTS) {
     ...DatosPermiso
   }
 }
